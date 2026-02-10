@@ -1,0 +1,10 @@
+# Variables de entorno
+.env
+
+# Credenciales de Google
+*.json
+
+# Python
+__pycache__/
+venv/
+poetry.lock

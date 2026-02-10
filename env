@@ -1,0 +1,5 @@
+# Copia este archivo como .env y completa los valores
+TELEGRAM_TOKEN=
+TELEGRAM_CHAT_ID=
+GOOGLE_SHEETS_CREDS_PATH=
+GOOGLE_SHEETS_NAME=
