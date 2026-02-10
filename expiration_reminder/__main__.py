@@ -5,12 +5,12 @@ from dotenv import load_dotenv
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta, date
 import locale
-from .utils import is_float
+from .utils import is_float, convert_sheet_to_date
 
-# Cargar variables desde el archivo .env
+# Load variables from .env file
 load_dotenv()
 
-# --- CONFIGURACIÓN DESDE VARIABLES DE ENTORNO ---
+# --- ENVIRONMENT VARIABLES CONFIGURATION ---
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 CREDS_PATH = os.getenv("GOOGLE_SHEETS_CREDS_PATH")
@@ -18,116 +18,116 @@ SHEETS_ID = os.getenv("GOOGLE_SHEETS_ID")
 
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
-print(f"Locale Before: {locale.getlocale()}")
-# Alternatively, set a specific locale (e.g., Argentina (Linux/macOS))
+LOCALE = os.getenv("FORCE_LOCALE", locale.getlocale())
+
+SOON_TIMESPAN = int(os.getenv("SOON_TIMESPAN", "2"))
+
+MSG_EXPIRATION_TODAY = os.getenv("MSG_EXPIRATION_TODAY", "🚨 Servicios que vencen hoy")
+MSG_EXPIRATION_SOON = os.getenv("MSG_EXPIRATION_SOON", "🔔 Servicios que vencen pronto")
+
+
+# Locale setting
 try:
-    locale.setlocale(locale.LC_ALL, 'es_AR.UTF-8')
+    locale.setlocale(locale.LC_ALL, LOCALE)
 except Exception:
+    print(f"Could not set Locale: {LOCALE}, using default: {locale.getlocale()}")
     pass
-print(f"Locale After: {locale.getlocale()}")
+print(f"Using Locale: {locale.getlocale()}")
 
 
-def enviar_telegram(mensaje):
+def send_msg_telegram(mensaje):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": mensaje}
     try:
         response = requests.post(url, json=payload)
         response.raise_for_status()
     except Exception as e:
-        print(f"Error enviando a Telegram: {e}")
+        print(f"Error sending message to Telegram: {e}")
 
-def procesar_recordatorios():
+def process_services_reminder():
     if not all([TOKEN, CHAT_ID, CREDS_PATH, SHEETS_ID]):
-        print("Error: Faltan variables de entorno.")
+        print("Error: Environment variables missing.")
         return
 
     try:
-        # Autenticación usando la ruta del JSON de la variable de entorno
+        # Auth from JSON file path
         creds = ServiceAccountCredentials.from_json_keyfile_name(CREDS_PATH, SCOPE)
         client = gspread.authorize(creds)
         
         hoy = datetime.now()
-        actualYear = datetime.now().strftime("%Y")
-        actualMonth = datetime.now().strftime("%B")
+        actual_year = datetime.now().strftime("%Y")
+        actual_month = datetime.now().strftime("%B")
         
-        sheet = client.open_by_key(SHEETS_ID).worksheet(actualYear)
-        data = sheet.get_all_values(major_dimension="COLUMNS",return_type=gspread.utils.GridRangeType.ValueRange)
-        #data = sheet.get_all_values(return_type=)
-        #monthCell = sheet.find(actualMonth,in_row=2,case_sensitive=False)
-        #data = sheet.batch_get(monthCell.numeric_value)
+        sheet = client.open_by_key(SHEETS_ID).worksheet(actual_year)
+        data = sheet.get_all_values(major_dimension="COLUMNS",value_render_option="UNFORMATTED_VALUE", return_type=gspread.utils.GridRangeType.ValueRange)
 
-        servicios = []
-        servicios_vencen_hoy = []
-        servicios_vencen_pronto = []
+        services = []
+        services_expire_today = []
+        services_expires_soon = []
 
         encontrado = False
 
-        index = 0
-
-        for index,columna in enumerate(data):
-            if str.lower(columna[1]) != str.lower(actualMonth):
+        for index,column in enumerate(data):
+            if str.lower(column[1]) != str.lower(actual_month):
                 continue
             else:
-                print(f"Analizando mes {actualMonth}")
-
+                print(f"Analyzing month: {actual_month}")
                 break
         
-        cantidad_filas = len(data[0])
+        row_count = len(data[0])
 
-        columna_servicio = data[0]
-        columna_monto = data[index]
-        columna_vencimiento = data[index+1]
-        columna_pagado = data[index+2]
+        service_col = data[0]
+        amount_col = data[index]
+        expiration_col = data[index+1]
+        already_paid_col = data[index+2]
 
-        for step in range(2,cantidad_filas):
-            print(f"Analizando servicio: {columna_servicio[step]} | {columna_vencimiento[step]} | {columna_monto[step]} | {columna_pagado[step]}")
+        for row in range(2,row_count):
+            print(f"Analyzing service: {service_col[row]} | {convert_sheet_to_date(expiration_col[row]).strftime('%d/%m/%Y')} | {amount_col[row]} | {already_paid_col[row]}")
 
-            if columna_servicio[step] == "" \
-                or columna_vencimiento[step] == "" \
-                or columna_monto[step] == "" \
-                or is_float(str.replace(str.replace(str.replace(columna_monto[step],".",""),"$",""),",",".")) is False \
-                or columna_pagado[step] != "FALSE":
+            if service_col[row] == "" \
+                or expiration_col[row] == "" \
+                or amount_col[row] == "" \
+                or is_float(amount_col[row]) is False \
+                or already_paid_col[row] != False:
                 continue
 
-            servicio = {
-                "name": columna_servicio[step],
-                "monto": columna_monto[step],
-                "vencimiento": columna_vencimiento[step] if len(columna_vencimiento[step]) == 8 else f"0{columna_vencimiento[step]}"
+            service = {
+                "name": service_col[row],
+                "amount": amount_col[row],
+                # Fix for Sheets date, days
+                "expiration": convert_sheet_to_date(expiration_col[row]).strftime('%d/%m/%Y')
             }
 
-            servicios.append(servicio)
+            services.append(service)
 
-            if servicio.get("vencimiento") == hoy.strftime("%d/%m/%Y") \
-                or servicio.get("vencimiento") == hoy.strftime("%d/%m/%y"):
-                servicios_vencen_hoy.append(servicio)
+            if service.get("expiration") == hoy.strftime("%d/%m/%Y"):
+                services_expire_today.append(service)
 
-            elif servicio.get("vencimiento") <= (hoy + timedelta(days=2)).strftime("%d/%m/%Y") \
-                and servicio.get("vencimiento") > hoy.strftime("%d/%m/%Y") \
-                or servicio.get("vencimiento") <= (hoy + timedelta(days=2)).strftime("%d/%m/%y") \
-                and servicio.get("vencimiento") > hoy.strftime("%d/%m/%y") :
-                servicios_vencen_pronto.append(servicio)
+            elif service.get("expiration") <= (hoy + timedelta(days=SOON_TIMESPAN)).strftime("%d/%m/%Y") \
+                and service.get("expiration") > hoy.strftime("%d/%m/%Y") :
+                services_expires_soon.append(service)
 
-        if len(servicios_vencen_hoy) > 0:
-            mensaje = f"🚨 Servicios que vencen hoy:\n"
-            for servicio in servicios_vencen_hoy:
-                mensaje+=f"* {servicio.get("name")} - ${servicio.get("monto")}\n"
+        if len(services_expire_today) > 0:
+            message = f"{MSG_EXPIRATION_TODAY}:\n"
+            for service in services_expire_today:
+                message+=f"* {service.get("name")} - ${service.get("amount")}\n"
         
-            print(mensaje)
-            enviar_telegram(mensaje)
+            print(message)
+            send_msg_telegram(message)
 
-        if len(servicios_vencen_hoy) > 0:
-            mensaje = f"🔔 Servicios que vencen pronto:\n"
-            for servicio in servicios_vencen_pronto:
-                mensaje+=f"* {servicio.get("name")} - ${servicio.get("monto")}\n"
+        if len(services_expires_soon) > 0:
+            message = f"{MSG_EXPIRATION_SOON}:\n"
+            for service in services_expires_soon:
+                message+=f"* {service.get("name")} - ${service.get("amount")} - ${service.get("expiration")}\n"
             
-            print(mensaje)
-            enviar_telegram(mensaje)
+            print(message)
+            send_msg_telegram(message)
 
-        print(f"Servicios: {servicios}")
+        print(f"Services: {services}")
 
 
     except Exception as e:
-        print(f"Error en el proceso: {e}")
+        print(f"An error ocurred: {e}")
 
 if __name__ == "__main__":
-    procesar_recordatorios()
+    process_services_reminder()

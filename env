@@ -1,5 +1,17 @@
-# Copia este archivo como .env y completa los valores
+# Copy this file as .env and complete the values
+
+# REQUIRED
 TELEGRAM_TOKEN=
 TELEGRAM_CHAT_ID=
 GOOGLE_SHEETS_CREDS_PATH=
 GOOGLE_SHEETS_NAME=
+
+# Force Locale, if not set use system default
+FORCE_LOCALE=
+
+# How many days is considered "soon to expire". Default if not set, is 2 days
+SOON_TIMESPAN=
+
+# Messages caption (optional, use a default caption if not set)
+MSG_EXPIRATION_TODAY=
+MSG_EXPIRATION_SOON=
