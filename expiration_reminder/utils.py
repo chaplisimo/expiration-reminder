@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 # Function to check if a value is a float
 def is_float(value):
@@ -23,4 +23,5 @@ def is_float(value):
 def convert_sheet_to_date(value):
     if value == "": 
         return datetime.min
-    return datetime.fromtimestamp((int(value) - 25569) * 86400) # Ref: https://stackoverflow.com/a/6154953
+    # Ref: https://stackoverflow.com/a/6154953 (but had to add 1 day)
+    return datetime.fromtimestamp((int(value) - 25568) * 86400)
