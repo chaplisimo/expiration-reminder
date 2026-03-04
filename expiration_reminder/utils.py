@@ -21,7 +21,7 @@ def is_float(value):
     return False
 
 def convert_sheet_to_date(value):
-    if value == "": 
+    if str(value).isnumeric() != True: 
         return datetime.min
     # Ref: https://stackoverflow.com/a/6154953 (but had to add 1 day)
     return datetime.fromtimestamp((int(value) - 25568) * 86400)

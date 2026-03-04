@@ -57,9 +57,15 @@ def process_services_reminder():
         hoy = datetime.now()
         actual_year = datetime.now().strftime("%Y")
         actual_month = datetime.now().strftime("%B")
+        #first_day_of_month = datetime.replace(datetime.now(), day = 1)
+
+
+        print(f"Actual month: {actual_month}")
         
         sheet = client.open_by_key(SHEETS_ID).worksheet(actual_year)
         data = sheet.get_all_values(major_dimension="COLUMNS",value_render_option="UNFORMATTED_VALUE", return_type=gspread.utils.GridRangeType.ValueRange)
+
+        print(f"Sheet read OK")
 
         services = []
         services_expire_today = []
@@ -68,11 +74,17 @@ def process_services_reminder():
         encontrado = False
 
         for index,column in enumerate(data):
-            if str.lower(column[1]) != str.lower(actual_month):
-                continue
+            print(f"Index: {index} - Column {column}")
+            if convert_sheet_to_date(column[1]).month != datetime.now().month:
+               #print(f"CTS {column[1]} ||| {convert_sheet_to_date(column[1])} != {first_day_of_month}")
+               continue
             else:
                 print(f"Analyzing month: {actual_month}")
                 break
+
+        if index > len(data) :
+                print("No valid month found")
+                return
         
         row_count = len(data[0])
 
