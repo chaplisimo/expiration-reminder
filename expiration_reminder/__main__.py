@@ -99,7 +99,7 @@ def process_services_reminder():
             if service_col[row] == "" \
                 or expiration_col[row] == "" \
                 or amount_col[row] == "" \
-                or is_float(amount_col[row]) is False \
+                or (is_float(amount_col[row]) or int.is_integer(amount_col[row])) is False \
                 or already_paid_col[row] != False:
                 continue
 
